@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>สแกน QR Code เข้า Google Sheets</title>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f4f6f9;}
+    #reader { width: 100%; max-width: 500px; margin: 20px auto; background: white; padding: 10px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);}
+    #result { margin-top: 20px; font-size: 18px; font-weight: bold; }
+    .success { color: #0f9d58; }
+    .error { color: #d93025; }
+  </style>
+</head>
+<body>
+
+  <h2>สแกน QR Code (ผ่านกล้อง Mac)</h2>
+  <div id="reader"></div>
+  <div id="result">พร้อมสแกน</div>
+
+  <script>
+    // ⚠️ เอา URL ของ Apps Script ที่ได้จากส่วนที่ 1 มาใส่ในเครื่องหมายคำพูดด้านล่างนี้
+    const WEB_APP_URL = "ใส่_URL_WEB_APP_ของ_APPS_SCRIPT_ตรงนี้"; 
+
+    let html5QrcodeScanner = new Html5QrcodeScanner(
+      "reader", 
+      { fps: 10, qrbox: { width: 250, height: 250 } }, 
+      false
+    );
+
+    function onScanSuccess(decodedText, decodedResult) {
+      html5QrcodeScanner.clear().then(() => {
+        document.getElementById('result').innerText = "กำลังส่งข้อมูล: " + decodedText + " ...";
+        document.getElementById('result').className = "";
+
+        // ส่งข้อมูลไปที่ Apps Script 
+        fetch(WEB_APP_URL + "?qr=" + encodeURIComponent(decodedText))
+          .then(response => response.text())
+          .then(data => {
+            if(data === "Success") {
+              document.getElementById('result').innerText = "✅ บันทึกสำเร็จ: " + decodedText + " (รีเฟรชหน้าเว็บเพื่อสแกนใหม่)";
+              document.getElementById('result').className = "success";
+            } else {
+              document.getElementById('result').innerText = "❌ เกิดข้อผิดพลาดจากเซิร์ฟเวอร์";
+              document.getElementById('result').className = "error";
+            }
+          })
+          .catch(error => {
+            document.getElementById('result').innerText = "❌ ไม่สามารถติดต่อ Google Sheets ได้";
+            document.getElementById('result').className = "error";
+          });
+      });
+    }
+
+    function onScanFailure(error) {}
+
+    html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+  </script>
+</body>
+</html>
