@@ -1,60 +1,1393 @@
 <!DOCTYPE html>
-<html>
+<html lang="th">
 <head>
-  <meta charset="utf-8">
-  <title>สแกน QR Code เข้า Google Sheets</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base target="_top">
+  <title>TCN Admin</title>
+  <script src="https://www.gstatic.com/charts/loader.js"></script>
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <link href="https://cdn.jsdelivr.net/npm/gridstack@8.2.3/dist/gridstack.min.css" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/gridstack@8.2.3/dist/gridstack-all.js"></script>
   <style>
-    body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f4f6f9;}
-    #reader { width: 100%; max-width: 500px; margin: 20px auto; background: white; padding: 10px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);}
-    #result { margin-top: 20px; font-size: 18px; font-weight: bold; }
-    .success { color: #0f9d58; }
-    .error { color: #d93025; }
+    :root {
+      --green:       #1b9c5b;
+      --green-dark:  #0c6b3b;
+      --green-light: #e6f6ec;
+      --green-mid:   #c3e8d1;
+      --border:      #dce8e1;
+      --text:        #163227;
+      --muted:       #7a8f84;
+      --bg:          #f3f6f4;
+      --white:       #ffffff;
+      --radius:      16px;
+      --shadow:      0 4px 20px rgba(0,0,0,0.07);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; }
+    .app { display: flex; min-height: 100vh; }
+
+    /* SIDEBAR */
+    .sidebar { width: 210px; flex-shrink: 0; background: linear-gradient(160deg, #1fad65 0%, #0d7a42 100%); padding: 30px 10px; display: flex; flex-direction: column; gap: 10px; color: #fff; }
+    .logo { font-size: 18px; font-weight: 800; letter-spacing: .04em; display: flex; align-items: center; gap: 8px; }
+    .nav-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; opacity: .65; margin-bottom: 10px; }
+    .nav-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px; border-radius: 12px; border: none; background: rgba(255,255,255,.08); color: rgba(255,255,255,.85); font-size: 13px; font-weight: 500; cursor: pointer; margin-bottom: 6px; transition: all .2s ease; }
+    .nav-btn:hover { background: rgba(255,255,255,.18); color: #fff; }
+    .nav-btn.active { background: var(--white); color: var(--green); font-weight: 700; box-shadow: 0 4px 14px rgba(0,0,0,.15); }
+
+    /* MAIN */
+    .main { flex: 1; padding: 28px 30px; display: flex; flex-direction: column; gap: 22px; overflow-x: hidden; }
+    .page-title { font-size: 22px; font-weight: 800; }
+    .page-sub   { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+
+    /* STAT CARDS */
+    .cards { display: flex; flex-wrap: wrap; gap: 14px; }
+    .card { flex: 1 1 120px; background: var(--white); border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow); border: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+    .card-label { font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+    .card-value { font-size: 30px; font-weight: 800; color: var(--green-dark); line-height: 1; }
+    .card.paid-card   .card-value { color: #0d7a42; }
+    .card.unpaid-card .card-value { color: #c0392b; }
+    .card.quota-card  .card-value { color: #1a56db; }
+    .card.cancel-card .card-value { color: #6b7280; }
+    .card.total-card  .card-value { color: var(--green-dark); }
+    .card.male-card   .card-value { color: #1a56db; }
+    .card.female-card .card-value { color: #d63384; }
+
+    /* LAYOUT */
+    .content-row { display: grid; grid-template-columns: minmax(0,1.15fr) minmax(0,1.85fr); gap: 20px; align-items: flex-start; }
+    .left-col { display: flex; flex-direction: column; gap: 20px; }
+    .panel { background: var(--white); border-radius: var(--radius); padding: 20px 22px; box-shadow: var(--shadow); border: 1px solid var(--border); }
+    .panel-title { font-size: 14px; font-weight: 700; }
+    .panel-sub   { font-size: 11.5px; color: var(--muted); margin: 3px 0 16px; }
+    #chartDiv { width: 100%; height: 270px; border-radius: 12px; overflow: hidden; }
+
+    /* TABLE */
+    .table-wrap { overflow-y: auto; max-height: 420px; }
+    table  { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    thead tr { background: var(--green-light); }
+    th { padding: 8px 12px; font-weight: 700; color: var(--green-dark); text-align: left; position: sticky; top: 0; background: var(--green-light); white-space: nowrap; }
+    td { padding: 7px 12px; border-bottom: 1px solid #edf1ee; vertical-align: middle; font-size: 12.5px; }
+    tbody tr:hover { background: #f8fcfa; cursor: pointer; }
+
+    /* AVATAR */
+    .avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 2px solid var(--green-mid); background: var(--green-light); display: block; }
+    .avatar-placeholder { width: 30px; height: 30px; border-radius: 50%; background: var(--green-light); border: 2px solid var(--green-mid); display: flex; align-items: center; justify-content: center; font-size: 16px; }
+
+    /* PILL */
+    .pill { display: inline-block; padding: 3px 11px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .paid      { background: #e3f9ee; color: #0d7a42; border: 1px solid #b6e8cc; }
+    .unpaid    { background: #ffeaea; color: #c0392b; border: 1px solid #f5b7b1; }
+    .quota     { background: #e8f0fe; color: #1a56db; border: 1px solid #b8d0fb; }
+    .cancelled { background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; }
+    .loading   { text-align: center; padding: 30px; color: var(--muted); font-size: 13px; }
+
+    /* CLASS LIST (หน้าคลาสเรียน) */
+    .class-section { background: linear-gradient(135deg, #1fad65 0%, #0a7b35 100%); border-radius: 20px; padding: 20px; box-shadow: 0 8px 32px rgba(10,123,53,.25); }
+    .class-section-title { font-size: 17px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+    .class-section-sub { font-size: 12px; color: rgba(255,255,255,.75); margin-bottom: 14px; }
+    .class-header-row { background: rgba(255,255,255,.15); border-radius: 12px; padding: 10px 18px; display: grid; grid-template-columns: 130px 150px 1fr 110px 60px; gap: 10px; align-items: center; font-size: 12px; font-weight: 700; color: rgba(255,255,255,.9); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .04em; }
+    .class-data-row { background: #fff; border-radius: 14px; padding: 12px 18px; display: grid; grid-template-columns: 130px 150px 1fr 110px 60px; gap: 10px; align-items: center; margin-bottom: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.08); font-size: 13px; transition: transform .15s, box-shadow .15s; cursor: pointer; }
+    .class-data-row:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,0,0,.13); }
+    .class-cell-center { text-align: center; }
+    .class-arrow-btn { width: 32px; height: 32px; border-radius: 999px; border: 2px solid var(--green); background: var(--green-light); color: var(--green); display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: 800; font-size: 14px; transition: all .2s; margin: 0 auto; }
+    .class-arrow-btn:hover { background: var(--green); color: #fff; }
+
+    /* CLASS DETAIL */
+    .detail-header-card { background: #fff; border-radius: 16px; padding: 16px 22px; display: grid; grid-template-columns: 140px 160px 1fr auto; gap: 14px; align-items: center; margin-bottom: 16px; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+    .detail-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 16px; }
+    .detail-stat-card { background: #fff; border-radius: 14px; padding: 16px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+    .detail-stat-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+    .detail-stat-val   { font-size: 26px; font-weight: 800; }
+    .detail-table-wrap { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+
+    /* INFO LIST */
+    .info-section { background: linear-gradient(135deg, #1fad65 0%, #0a7b35 100%); border-radius: 20px; padding: 20px; box-shadow: 0 8px 32px rgba(10,123,53,.25); }
+    .info-header-row { background: rgba(255,255,255,.15); border-radius: 12px; padding: 10px 18px; display: grid; grid-template-columns: 1fr 100px 60px; gap: 10px; align-items: center; font-size: 12px; font-weight: 700; color: rgba(255,255,255,.9); margin-bottom: 8px; text-transform: uppercase; }
+    .info-data-row { background: #fff; border-radius: 14px; padding: 12px 18px; display: grid; grid-template-columns: 1fr 100px 60px; gap: 10px; align-items: center; margin-bottom: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.08); font-size: 13px; }
+    .info-arrow-btn { width: 32px; height: 32px; border-radius: 999px; border: 2px solid var(--green); background: var(--green-light); color: var(--green); display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: 800; font-size: 14px; transition: all .2s; margin: 0 auto; }
+    .info-arrow-btn:hover { background: var(--green); color: #fff; }
+    .info-back-btn { width: 34px; height: 34px; border-radius: 999px; border: 2px solid #c0392b; background: #fff; color: #c0392b; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: 800; font-size: 15px; transition: all .2s; }
+    .info-back-btn:hover { background: #c0392b; color: #fff; }
+
+    /* INFO DETAIL STATS */
+    .info-detail-stats { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+    .info-stat-card { background: #fff; border-radius: 14px; padding: 14px 20px; box-shadow: var(--shadow); border: 1px solid var(--border); text-align: center; min-width: 90px; flex: 1 1 90px; }
+    .info-stat-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+    .info-stat-val   { font-size: 24px; font-weight: 800; }
+    .info-detail-table { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+
+    /* POPUP */
+    .popup-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; z-index: 999; }
+    .popup-card { width: 90%; max-width: 660px; background: #f4f4f4; border-radius: 18px; box-shadow: 0 12px 40px rgba(0,0,0,.3); padding: 18px 20px 20px; border: 4px solid #0a7b35; max-height: 90vh; overflow-y: auto; }
+    .popup-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+    .popup-title  { font-size:18px; font-weight:800; }
+    .popup-header-actions { display:flex; gap:8px; align-items:center; }
+    .popup-edit-btn { height:32px; padding:0 14px; border-radius:999px; border:2px solid #0a7b35; background:#fff; color:#0a7b35; display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:700; font-size:13px; transition:all .2s; }
+    .popup-edit-btn:hover { background:#0a7b35; color:#fff; }
+    .popup-close-btn { width:32px; height:32px; border-radius:999px; border:2px solid #c0392b; background:#fff; color:#c0392b; display:flex; align-items:center; justify-content:center; cursor:pointer; font-weight:800; font-size:16px; transition:all .2s; }
+    .popup-close-btn:hover { background:#c0392b; color:#fff; }
+    .popup-body { background:#fff; border-radius:14px; padding:16px; display:grid; grid-template-columns:200px minmax(0,1fr); column-gap:16px; }
+    .popup-photo-box { border-radius:14px; background:#0a7b35; border:3px solid #6a0df0; overflow:hidden; align-self:start; width:200px; height:240px; flex-shrink:0; }
+    .popup-photo-box img { width:100%; height:100%; object-fit:cover; object-position:center top; display:block; }
+    .popup-field  { margin-bottom:7px; font-size:13px; }
+    .popup-label  { display:block; font-weight:700; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px; }
+    .popup-input  { display:block; width:100%; padding:5px 8px; border-radius:8px; border:1px solid #ddd; font-size:13px; background:#fdfdfd; color:var(--text); }
+
+    /* EDIT OVERLAY */
+    .edit-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; align-items: center; justify-content: center; z-index: 1000; }
+    .edit-card { width: 92%; max-width: 740px; background: #f4f4f4; border-radius: 18px; box-shadow: 0 12px 40px rgba(0,0,0,.35); padding: 0; border: 4px solid #0a7b35; max-height: 92vh; display:flex; flex-direction:column; }
+    .edit-header { background: linear-gradient(135deg,#1fad65,#0a7b35); border-radius:14px 14px 0 0; padding:16px 20px; display:flex; align-items:center; justify-content:space-between; }
+    .edit-header-title { color:#fff; font-size:17px; font-weight:800; display:flex; align-items:center; gap:8px; }
+    .edit-header-actions { display:flex; gap:8px; }
+    .edit-save-btn { height:34px; padding:0 18px; border-radius:999px; border:2px solid #fff; background:#fff; color:#0a7b35; font-weight:800; font-size:13px; cursor:pointer; transition:all .2s; }
+    .edit-save-btn:hover { background:#0a7b35; color:#fff; }
+    .edit-cancel-btn { height:34px; width:34px; border-radius:999px; border:2px solid rgba(255,255,255,.6); background:transparent; color:#fff; font-weight:800; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .2s; }
+    .edit-cancel-btn:hover { background:rgba(255,255,255,.2); }
+    .edit-body { padding:20px; overflow-y:auto; flex:1; }
+    .edit-section { margin-bottom:20px; }
+    .edit-section-title { font-size:12px; font-weight:800; color:#0a7b35; text-transform:uppercase; letter-spacing:.06em; padding-bottom:6px; border-bottom:2px solid #d4edda; margin-bottom:12px; display:flex; align-items:center; gap:6px; }
+    .edit-grid   { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .edit-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+    .edit-full   { grid-column: 1 / -1; }
+    .edit-field label { display:block; font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px; }
+    .edit-field input, .edit-field select, .edit-field textarea { display:block; width:100%; padding:7px 10px; border-radius:10px; border:1.5px solid #d0ddd5; font-size:13px; background:#fff; color:var(--text); transition: border-color .2s; }
+    .edit-field input:focus, .edit-field select:focus, .edit-field textarea:focus { outline:none; border-color:#0a7b35; box-shadow:0 0 0 3px rgba(10,123,53,.1); }
+    .edit-field textarea { resize:vertical; min-height:68px; }
+    .photo-upload-box { border:2px dashed #0a7b35; border-radius:14px; padding:14px; text-align:center; cursor:pointer; background:#f5fbf7; transition:background .2s; }
+    .photo-upload-box:hover { background:#e6f6ec; }
+    .photo-preview { width:120px; height:120px; border-radius:12px; object-fit:cover; border:2px solid #0a7b35; display:none; margin:0 auto 8px; }
+    .upload-status { font-size:12px; margin-top:6px; font-weight:600; }
+    .upload-status.success { color:#0a7b35; }
+    .upload-status.error   { color:#c0392b; }
+    .upload-status.loading { color:#888; }
+
+    /* CALENDAR */
+    .cal-day { padding:5px 2px; border-radius:8px; cursor:pointer; font-size:13px; transition:background .15s; }
+    .cal-day:hover { background:#e6f6ec; }
+    .cal-day.selected { background:#0a7b35 !important; color:#fff; font-weight:700; }
+    .cal-day.today { border:2px solid #0a7b35; font-weight:700; }
+    .cal-day.other-month { color:#ccc; }
+
+    /* TOAST */
+    .toast { position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(20px); background:#0a7b35; color:#fff; padding:12px 28px; border-radius:999px; font-size:14px; font-weight:700; box-shadow:0 6px 24px rgba(0,0,0,.25); opacity:0; transition:opacity .3s, transform .3s; z-index:2000; pointer-events:none; }
+    .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+    /* NEW QR LOG STYLES */
+    #qrLogInitial p { font-size: 13px; color: var(--muted); margin-top: 10px; }
+    #qrLogReader { margin: 20px auto; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+
+    @media (max-width:900px) {
+      .app { flex-direction:column; }
+      .sidebar { width:100%; flex-direction:row; flex-wrap:wrap; padding:14px 16px; gap:12px; }
+      .main { padding:16px; }
+      .content-row { grid-template-columns:1fr; }
+      .class-header-row, .class-data-row { grid-template-columns:100px 120px 1fr 90px 50px; font-size:11px; }
+      .detail-stats { grid-template-columns:repeat(2,1fr); }
+      .popup-body { grid-template-columns:1fr; }
+      .edit-grid, .edit-grid-3 { grid-template-columns:1fr; }
+    }
   </style>
 </head>
 <body>
+<div class="app">
 
-  <h2>สแกน QR Code (ผ่านกล้อง Mac)</h2>
-  <div id="reader"></div>
-  <div id="result">พร้อมสแกน</div>
+  <aside class="sidebar">
+    <div class="logo">
+      <img src="https://drive.google.com/thumbnail?id=1hWgaCql4_J41XkoZnMDrWft7LVb6Q0sU&sz=w600-h300"
+           alt="TCN Logo"
+           style="width:200px;height:auto;max-height:200px;object-fit:contain;border-radius:10px;display:block;margin:0 auto;"
+           onerror="this.style.display='none'">
+    </div>
+    <div style="margin-top:8px;">
+      <div class="nav-label">เมนูหลัก</div>
+      <button class="nav-btn active" data-page="dashboard">📊 Dashboard</button>
+      <button class="nav-btn" data-page="classes">📚 คลาสเรียน</button>
+      <button class="nav-btn" data-page="info">📋 ข้อมูล</button>
+    </div>
+  </aside>
 
-  <script>
-    // ⚠️ เอา URL ของ Apps Script ที่ได้จากส่วนที่ 1 มาใส่ในเครื่องหมายคำพูดด้านล่างนี้
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyrBqtsoLY1Ja6v4uT1pwwCqe9__jTI64kMtoDY6Z-PYMMgjNgW8K4JjJhNIYIhCbme/exec"; 
+  <main class="main">
 
-    let html5QrcodeScanner = new Html5QrcodeScanner(
-      "reader", 
-      { fps: 10, qrbox: { width: 250, height: 250 } }, 
-      false
-    );
+    <section id="page-dashboard">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap: 12px; margin-bottom: 22px;">
+        <div>
+          <div class="page-title">Dashboard</div>
+          <div class="page-sub">ภาพรวมสถานะการสมัครและการชำระเงิน</div>
+        </div>
+        <div style="display:flex; align-items:center; gap: 10px;">
+          <button id="qrLogBtn" onclick="openQrLogPopup()" style="padding:10px 20px; border-radius:999px; border:2px solid var(--green); background:var(--green); color:#fff; font-weight:700; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:var(--shadow); transition:all .2s;">
+            🎰 บันทึก QR Scan
+          </button>
+          <button id="editLayoutBtn" onclick="toggleEditLayout()" style="padding:8px 16px; border-radius:8px; border:2px solid var(--green); background:#fff; color:var(--green); font-weight:700; cursor:pointer; transition:all 0.2s;">⚙️ ปรับแต่ง Layout</button>
+          <button id="saveLayoutBtn" onclick="saveLayout()" style="display:none; padding:8px 16px; border-radius:8px; border:none; background:var(--green); color:#fff; font-weight:700; cursor:pointer; box-shadow:var(--shadow);">💾 บันทึก Layout</button>
+        </div>
+      </div>
 
-    function onScanSuccess(decodedText, decodedResult) {
-      html5QrcodeScanner.clear().then(() => {
-        document.getElementById('result').innerText = "กำลังส่งข้อมูล: " + decodedText + " ...";
-        document.getElementById('result').className = "";
+      <div class="cards" style="margin-bottom: 22px;">
+        <div class="card paid-card"><div class="card-label">✅ ชำระแล้ว</div><div class="card-value" id="paidCount">—</div></div>
+        <div class="card unpaid-card"><div class="card-label">❌ ยังไม่ชำระ</div><div class="card-value" id="unpaidCount">—</div></div>
+        <div class="card quota-card"><div class="card-label">🔵 โควต้า</div><div class="card-value" id="quotaCount">—</div></div>
+        <div class="card cancel-card"><div class="card-label">⚪ ยกเลิก</div><div class="card-value" id="cancelledCount">—</div></div>
+        <div class="card total-card"><div class="card-label">📊 ทั้งหมด</div><div class="card-value" id="totalCount">—</div></div>
+      </div>
 
-        // ส่งข้อมูลไปที่ Apps Script 
-        fetch(WEB_APP_URL + "?qr=" + encodeURIComponent(decodedText))
-          .then(response => response.text())
-          .then(data => {
-            if(data === "Success") {
-              document.getElementById('result').innerText = "✅ บันทึกสำเร็จ: " + decodedText + " (รีเฟรชหน้าเว็บเพื่อสแกนใหม่)";
-              document.getElementById('result').className = "success";
-            } else {
-              document.getElementById('result').innerText = "❌ เกิดข้อผิดพลาดจากเซิร์ฟเวอร์";
-              document.getElementById('result').className = "error";
-            }
-          })
-          .catch(error => {
-            document.getElementById('result').innerText = "❌ ไม่สามารถติดต่อ Google Sheets ได้";
-            document.getElementById('result').className = "error";
-          });
-      });
+      <div class="grid-stack" id="dashboard-grid">
+        
+        <div class="grid-stack-item" gs-id="panel-chart" gs-x="0" gs-y="0" gs-w="6" gs-h="5">
+          <div class="grid-stack-item-content">
+            <div class="panel" style="height:100%; display:flex; flex-direction:column; margin:0; padding:18px;">
+              <div class="panel-title">กราฟสถานะการชำระเงิน</div>
+              <div class="panel-sub">ชี้เม้าส์ที่กราฟเพื่อดูจำนวนและเปอร์เซ็นต์</div>
+              <div id="chartDiv" style="flex:1; min-height:0;"><div class="loading">กำลังโหลดกราฟ...</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-stack-item" gs-id="panel-applicants" gs-x="6" gs-y="0" gs-w="6" gs-h="5">
+          <div class="grid-stack-item-content">
+            <div class="panel" style="height:100%; display:flex; flex-direction:column; margin:0; padding:18px;">
+              <div class="panel-title">รายชื่อผู้สมัคร</div>
+              <div class="panel-sub">คลิกที่แถวเพื่อดูรายละเอียด</div>
+              <div class="table-wrap" style="flex:1; min-height:0; overflow-y:auto;">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style="cursor:pointer;" onclick="sortTable(this, 'applicantBody', 0)">รูป</th>
+                      <th style="cursor:pointer;" onclick="sortTable(this, 'applicantBody', 1)">ชื่อเล่น</th>
+                      <th style="cursor:pointer;" onclick="sortTable(this, 'applicantBody', 2)">ชื่อ – นามสกุล</th>
+                      <th style="cursor:pointer;" onclick="sortTable(this, 'applicantBody', 3)">สถานะ</th>
+                    </tr>
+                  </thead>
+                  <tbody id="applicantBody"><tr><td colspan="4" class="loading">กำลังโหลด...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-stack-item" gs-id="panel-birthday" gs-x="0" gs-y="5" gs-w="4" gs-h="4">
+          <div class="grid-stack-item-content">
+            <div class="panel" style="height:100%; display:flex; flex-direction:column; margin:0; padding:18px;">
+              <div class="panel-title">🎂 คนเกิดในเดือนนี้</div>
+              <div class="panel-sub">รายชื่อผู้สมัครที่มีวันเกิดในเดือนนี้</div>
+              <div class="table-wrap" style="flex:1; min-height:0; overflow-y:auto;">
+                <table>
+                  <thead><tr><th>รูป</th><th>ชื่อเล่น</th><th>ชื่อ – นามสกุล</th><th>วันที่</th></tr></thead>
+                  <tbody id="birthdayBody"><tr><td colspan="4" class="loading">กำลังโหลด...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-stack-item" gs-id="panel-magictime" gs-x="4" gs-y="5" gs-w="4" gs-h="4">
+          <div class="grid-stack-item-content">
+            <div class="panel" style="height:100%; display:flex; flex-direction:column; margin:0; padding:18px;">
+              <div class="panel-title">✨ Magic Time</div>
+              <div class="panel-sub" id="magicTimeSub">กำลังโหลด...</div>
+              <div class="table-wrap" style="flex:1; min-height:0; overflow-y:auto;">
+                <table>
+                  <thead><tr><th>รูป</th><th>ชื่อเล่น</th><th>ชื่อ – นามสกุล</th></tr></thead>
+                  <tbody id="magicTimeBody"><tr><td colspan="3" class="loading">กำลังโหลด...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-stack-item" gs-id="panel-canpay" gs-x="8" gs-y="5" gs-w="4" gs-h="4">
+          <div class="grid-stack-item-content">
+            <div class="panel" style="height:100%; display:flex; flex-direction:column; margin:0; padding:18px;">
+              <div class="panel-title">💳 สามารถจ่าย</div>
+              <div class="panel-sub" id="canPaySub">กำลังโหลด...</div>
+              <div class="table-wrap" style="flex:1; min-height:0; overflow-y:auto;">
+                <table>
+                  <thead><tr><th>รูป</th><th>ชื่อเล่น</th><th>ชื่อ – นามสกุล</th></tr></thead>
+                  <tbody id="canPayBody"><tr><td colspan="3" class="loading">กำลังโหลด...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <section id="page-classes" style="display:none;">
+      <div>
+        <div class="page-title">คลาสเรียน</div>
+        <div class="page-sub">ตารางคลาสเรียนตามรอบต่าง ๆ</div>
+      </div>
+
+      <div id="class-list-view" class="class-section">
+        <div class="class-section-title">The Connext – Schedule</div>
+        <div class="class-section-sub">แสดงรอบเรียนทั้งหมด</div>
+        <div class="class-header-row">
+          <div>วันที่</div>
+          <div>เวลา</div>
+          <div>ชื่อคลาส</div>
+          <div class="class-cell-center">วิทยากร</div>
+          <div class="class-cell-center">ดูรายละเอียด</div>
+        </div>
+        <div class="class-data-row" data-class="connext 1">
+          <div>20 Mar 2026</div><div>13:00–22:00</div><div style="font-weight:600;">connext 1</div>
+          <div class="class-cell-center">Phone</div>
+          <div class="class-cell-center"><button class="class-arrow-btn">›</button></div>
+        </div>
+        <div class="class-data-row" data-class="connext 2">
+          <div>5 Apr 2026</div><div>13:00–22:00</div><div style="font-weight:600;">connext 2</div>
+          <div class="class-cell-center">Phone</div>
+          <div class="class-cell-center"><button class="class-arrow-btn">›</button></div>
+        </div>
+        <div class="class-data-row" data-class="connext 3">
+          <div>12 Apr 2026</div><div>13:00–22:00</div><div style="font-weight:600;">connext 3</div>
+          <div class="class-cell-center">Phone</div>
+          <div class="class-cell-center"><button class="class-arrow-btn">›</button></div>
+        </div>
+        <div class="class-data-row" data-class="connext 4">
+          <div>19 Apr 2026</div><div>13:00–22:00</div><div style="font-weight:600;">connext 4</div>
+          <div class="class-cell-center">Phone</div>
+          <div class="class-cell-center"><button class="class-arrow-btn">›</button></div>
+        </div>
+        <div class="class-data-row" data-class="connext 5">
+          <div>26 Apr 2026</div><div>13:00–22:00</div><div style="font-weight:600;">connext 5</div>
+          <div class="class-cell-center">Phone</div>
+          <div class="class-cell-center"><button class="class-arrow-btn">›</button></div>
+        </div>
+        <div class="class-data-row" data-class="connext 6">
+          <div>5 May 2026</div><div>13:00–22:00</div><div style="font-weight:600;">connext 6</div>
+          <div class="class-cell-center">Phone</div>
+          <div class="class-cell-center"><button class="class-arrow-btn">›</button></div>
+        </div>
+        <div class="class-data-row" data-class="connext 7">
+          <div>TBD</div><div>13:00–22:00</div><div style="font-weight:600;">connext 7</div>
+          <div class="class-cell-center">Phone</div>
+          <div class="class-cell-center"><button class="class-arrow-btn">›</button></div>
+        </div>
+      </div>
+
+      <div id="class-detail-view" style="display:none;">
+        <div class="class-section">
+          <div class="detail-header-card">
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:2px;">วันที่</div>
+              <div id="detail-date" style="font-weight:700;font-size:14px;"></div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:2px;">เวลา</div>
+              <div id="detail-time" style="font-weight:700;font-size:14px;"></div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:2px;">ชื่อคลาส</div>
+              <div id="detail-name" style="font-weight:800;font-size:16px;color:var(--green-dark);"></div>
+              <div id="detail-host" style="font-size:12px;color:var(--muted);"></div>
+            </div>
+            <div>
+              <button id="detail-back-btn" class="info-back-btn">‹</button>
+            </div>
+          </div>
+          <div id="classDetailStats" class="detail-stats"></div>
+          <div id="classDetailBody" class="detail-table-wrap">
+            <div class="loading">กำลังโหลด...</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="page-info" style="display:none;">
+      <div id="info-list-view">
+        <div style="margin-bottom:16px;">
+          <div class="page-title">ข้อมูล</div>
+          <div class="page-sub">สรุปคลาสทั้งหมด</div>
+        </div>
+        <div class="info-section">
+          <div class="class-section-title">The Connext – ข้อมูลทุกคลาส</div>
+          <div class="class-section-sub">คลิก › เพื่อดูรายชื่อและสถิติ</div>
+          <div class="info-header-row">
+            <div>ชื่อคลาส</div>
+            <div style="text-align:center;">จำนวน</div>
+            <div></div>
+          </div>
+          <div id="infoListContainer"><div class="loading" style="color:rgba(255,255,255,.8);">กำลังโหลด...</div></div>
+        </div>
+      </div>
+
+      <div id="info-detail-view" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+          <div>
+            <div class="page-title" id="infoDetailTitle"></div>
+            <div class="page-sub">สถิติและรายชื่อผู้เข้าเรียนในคลาสนี้</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <div style="position:relative;">
+              <input id="searchInput" type="text" placeholder="🔍 ค้นหาชื่อ / ชื่อเล่น..."
+                oninput="filterTable()"
+                style="padding:8px 14px 8px 36px;border-radius:999px;border:1.5px solid var(--border); font-size:13px;width:220px;background:#fff;color:var(--text);outline:none; transition:border-color .2s;box-shadow:var(--shadow);">
+              <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:15px;pointer-events:none;">🔍</span>
+            </div>
+            <button id="slotBtn" onclick="runSlot()" style="padding:8px 18px;border-radius:999px;border:2px solid var(--green); background:var(--green);color:#fff;font-weight:700;font-size:13px; cursor:pointer;display:flex;align-items:center;gap:6px; box-shadow:var(--shadow);transition:all .2s;">
+              🎰 สุ่มชื่อ
+            </button>
+            <button id="infoBackBtn" class="info-back-btn">‹</button>
+          </div>
+        </div>
+
+        <div id="slotOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55); z-index:999;align-items:center;justify-content:center;">
+          <div style="background:#fff;border-radius:24px;padding:32px 40px;text-align:center; box-shadow:0 16px 48px rgba(0,0,0,.3);border:4px solid var(--green);min-width:320px;">
+            <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase; letter-spacing:.06em;margin-bottom:12px;">🎰 สุ่มรายชื่อ</div>
+            <div id="slotDisplay" style="font-size:28px;font-weight:800;color:var(--green-dark); min-height:60px;display:flex;align-items:center;justify-content:center; background:var(--green-light);border-radius:14px;padding:14px 24px;margin-bottom:8px; border:2px solid var(--green-mid);">—</div>
+            <div id="slotSub" style="font-size:13px;color:var(--muted);margin-bottom:20px;min-height:20px;"></div>
+            <div style="display:flex;gap:10px;justify-content:center;">
+              <button onclick="runSlot()" id="slotSpinBtn" style="padding:10px 24px;border-radius:999px;border:none;background:var(--green); color:#fff;font-weight:800;font-size:14px;cursor:pointer;">🎲 สุ่มอีกครั้ง</button>
+              <button onclick="closeSlot()" style="padding:10px 24px;border-radius:999px;border:2px solid #c0392b; background:#fff;color:#c0392b;font-weight:700;font-size:14px;cursor:pointer;">✕ ปิด</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="infoDetailStats" class="info-detail-stats"></div>
+        <div class="info-detail-table">
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr style="background:var(--green-light);">
+                <th style="padding:10px 12px;text-align:center;cursor:pointer;" onclick="sortTable(this, 'infoDetailBody', 0)">รูป</th>
+                <th style="padding:10px 12px;cursor:pointer;" onclick="sortTable(this, 'infoDetailBody', 1)">ชื่อเล่น</th>
+                <th style="padding:10px 12px;cursor:pointer;" onclick="sortTable(this, 'infoDetailBody', 2)">ชื่อ - นามสกุล</th>
+                <th style="padding:10px 12px;text-align:center;cursor:pointer;" onclick="sortTable(this, 'infoDetailBody', 3)">วันเกิด</th>
+                <th style="padding:10px 12px;text-align:center;cursor:pointer;" onclick="sortTable(this, 'infoDetailBody', 4, true)">อายุ</th>
+                <th style="padding:10px 12px;text-align:center;cursor:pointer;" onclick="sortTable(this, 'infoDetailBody', 5)">สถานะ</th>
+                <th style="padding:10px 12px;text-align:center;"></th>
+              </tr>
+            </thead>
+            <tbody id="infoDetailBody">
+              <tr><td colspan="7" class="loading">กำลังโหลด...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div id="qrLogPopup" class="popup-overlay">
+  <div class="popup-card" style="max-width: 500px;">
+    <div class="popup-header">
+      <div class="popup-title">🎰 บันทึก QR Scan</div>
+      <div class="popup-header-actions">
+        <button type="button" id="qrLogCloseBtn" class="popup-close-btn">×</button>
+      </div>
+    </div>
+    <div class="popup-body" style="display: block;">
+        <div id="qrLogReader" style="display: none; width: 100%;"></div>
+        
+        <div id="qrLogInitial" style="text-align: center; padding: 30px;">
+            <button id="qrLogStartBtn" class="nav-btn active" style="width: auto;" onclick="startQrLogScan()">
+               🎲 เปิดกล้องสแกน QR
+            </button>
+            <p>คลิกปุ่มด้านบนเพื่อเปิดกล้องและบันทึกข้อมูล QR Code ลง Sheet</p>
+        </div>
+        
+        <div id="qrLogResult" style="text-align: center; margin-top: 20px; font-size: 18px; font-weight: bold;"></div>
+    </div>
+  </div>
+</div>
+
+<div id="profilePopup" class="popup-overlay">
+  <div class="popup-card">
+    <div class="popup-header">
+      <div class="popup-title">ข้อมูลผู้สมัคร</div>
+      <div class="popup-header-actions">
+        <button type="button" id="popupEditBtn" class="popup-edit-btn">✏️ แก้ไข</button>
+        <button type="button" id="popupCloseBtn" class="popup-close-btn">×</button>
+      </div>
+    </div>
+    <div class="popup-body">
+      <div class="popup-photo-box">
+        <img id="popupPhoto" src="" alt="" onerror="this.style.display='none'">
+      </div>
+      <div>
+        <div class="popup-field"><span class="popup-label">ชื่อเล่น</span><input id="popupNickname" class="popup-input" readonly></div>
+        <div class="popup-field"><span class="popup-label">ชื่อ</span><input id="popupFirstName" class="popup-input" readonly></div>
+        <div class="popup-field"><span class="popup-label">นามสกุล</span><input id="popupLastName" class="popup-input" readonly></div>
+        <div class="popup-field"><span class="popup-label">เบอร์โทร</span><input id="popupPhone" class="popup-input" readonly></div>
+        <div class="popup-field"><span class="popup-label">อีเมล</span><input id="popupEmail" class="popup-input" readonly></div>
+        <div class="popup-field"><span class="popup-label">Line ID</span><input id="popupLine" class="popup-input" readonly></div>
+        <div class="popup-field"><span class="popup-label">Facebook</span><input id="popupFacebook" class="popup-input" readonly></div>
+        <div class="popup-field"><span class="popup-label">ที่อยู่</span><textarea id="popupAddress" class="popup-input" rows="2" readonly></textarea></div>
+        <div class="popup-field"><span class="popup-label">ตำแหน่ง</span><input id="popupPosition" class="popup-input" readonly></div>
+        <div class="popup-field"><span class="popup-label">บริษัท</span><input id="popupCompany" class="popup-input" readonly></div>
+        <div class="popup-field"><span class="popup-label">ไซส์เสื้อ</span><input id="popupShirt" class="popup-input" readonly></div>
+        <div class="popup-field"><span class="popup-label">เครื่องดื่ม</span><input id="popupDrink" class="popup-input" readonly></div>
+        <div class="popup-field"><span class="popup-label">งานอดิเรก</span><input id="popupHobby" class="popup-input" readonly></div>
+        <div class="popup-field"><span class="popup-label">เบอร์โทรฉุกเฉิน</span><input id="popupEmergency" class="popup-input" readonly></div>
+        <div class="popup-field"><span class="popup-label">สถานะ</span><input id="popupStatus" class="popup-input" readonly></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="editOverlay" class="edit-overlay">
+  <div class="edit-card">
+    <div class="edit-header">
+      <div class="edit-header-title">✏️ แก้ไขข้อมูลผู้สมัคร</div>
+      <div class="edit-header-actions">
+        <button type="button" id="editSaveBtn" class="edit-save-btn">💾 บันทึก</button>
+        <button type="button" id="editCancelBtn" class="edit-cancel-btn">×</button>
+      </div>
+    </div>
+    <div class="edit-body">
+      <div class="edit-section">
+        <div class="edit-section-title">⚙️ ระบบ / Admin</div>
+        <div class="edit-grid">
+          <div class="edit-field"><label>Line Candit (A)</label><input id="eLineCandit" type="text"></div>
+          <div class="edit-field"><label>Status (B)</label><input id="eStatusB" type="text"></div>
+          <div class="edit-field"><label>รอบสมัคร (C)</label><input id="eRound" type="text"></div>
+          <div class="edit-field"><label>Referred by (D)</label><input id="eReferredBy" type="text"></div>
+        </div>
+      </div>
+      <div class="edit-section">
+        <div class="edit-section-title">👤 ข้อมูลส่วนตัว</div>
+        <div class="edit-grid">
+          <div class="edit-field"><label>ชื่อ สกุล (E)</label><input id="eFullnameE" type="text"></div>
+          <div class="edit-field"><label>ชื่อเล่น TH (G)</label><input id="eNickname" type="text"></div>
+          <div class="edit-field"><label>ชื่อ (F)</label><input id="eFirstName" type="text"></div>
+          <div class="edit-field"><label>นามสกุล (F)</label><input id="eLastName" type="text"></div>
+          <div class="edit-field"><label>Name Surname EN (H)</label><input id="eNameEn" type="text"></div>
+          <div class="edit-field"><label>ชื่อเล่น EN (I)</label><input id="eNicknameEn" type="text"></div>
+          <div class="edit-field"><label>ID NO. (K)</label><input id="eIdNo" type="text"></div>
+          <div class="edit-field"><label>Gender (L)</label>
+            <select id="eGender">
+              <option value="">-- เลือก --</option>
+              <option value="ชาย">ชาย</option>
+              <option value="หญิง">หญิง</option>
+              <option value="อื่นๆ">อื่นๆ</option>
+            </select>
+          </div>
+          <div class="edit-field"><label>Birthday (M)</label>
+            <div style="position:relative;">
+              <input id="eBirthday" type="text" placeholder="DD/MM/YYYY" readonly style="cursor:pointer;background:#fff;" onclick="toggleCalendar()">
+              <span onclick="toggleCalendar()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:16px;">📅</span>
+            </div>
+            <div id="calendarPicker" style="display:none;position:absolute;z-index:2000;background:#fff;border:2px solid #0a7b35;border-radius:14px;padding:14px 16px;box-shadow:0 8px 32px rgba(0,0,0,0.18);min-width:280px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                <button type="button" onclick="changeMonth(-1)" style="border:none;background:none;font-size:18px;cursor:pointer;color:#0a7b35;">&#8249;</button>
+                <div style="display:flex;gap:6px;align-items:center;">
+                  <select id="calMonthSel" onchange="renderCalendar()" style="border:1.5px solid #0a7b35;border-radius:8px;padding:3px 6px;font-size:13px;font-weight:700;color:#0a7b35;"></select>
+                  <select id="calYearSel" onchange="renderCalendar()" style="border:1.5px solid #0a7b35;border-radius:8px;padding:3px 6px;font-size:13px;font-weight:700;color:#0a7b35;"></select>
+                </div>
+                <button type="button" onclick="changeMonth(1)" style="border:none;background:none;font-size:18px;cursor:pointer;color:#0a7b35;">&#8250;</button>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;">
+                <div style="font-size:11px;font-weight:700;color:#888;padding:4px 0;">อา</div>
+                <div style="font-size:11px;font-weight:700;color:#888;padding:4px 0;">จ</div>
+                <div style="font-size:11px;font-weight:700;color:#888;padding:4px 0;">อ</div>
+                <div style="font-size:11px;font-weight:700;color:#888;padding:4px 0;">พ</div>
+                <div style="font-size:11px;font-weight:700;color:#888;padding:4px 0;">พฤ</div>
+                <div style="font-size:11px;font-weight:700;color:#888;padding:4px 0;">ศ</div>
+                <div style="font-size:11px;font-weight:700;color:#888;padding:4px 0;">ส</div>
+              </div>
+              <div id="calDays" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;"></div>
+            </div>
+          </div>
+          <div class="edit-field"><label>Age (N)</label><input id="eAge" type="text" readonly style="background:#f5f5f5"></div>
+        </div>
+      </div>
+      <div class="edit-section">
+        <div class="edit-section-title">📞 ช่องทางติดต่อ</div>
+        <div class="edit-grid">
+          <div class="edit-field"><label>Line ID (O)</label><input id="eLineId" type="text"></div>
+          <div class="edit-field"><label>Facebook (P)</label><input id="eFacebook" type="text"></div>
+          <div class="edit-field"><label>Instagram (AP)</label><input id="eInstagram" type="text"></div>
+          <div class="edit-field "><label>Phone number (T)</label><input id="ePhone" type="tel"></div>
+          <div class="edit-field"><label>Email (U)</label><input id="eEmail" type="email"></div>
+          <div class="edit-field edit-full"><label>Address (X)</label><textarea id="eAddress"></textarea></div>
+        </div>
+      </div>
+      <div class="edit-section">
+        <div class="edit-section-title">🏢 การทำงาน</div>
+        <div class="edit-grid">
+          <div class="edit-field"><label>Workplace (Q)</label><input id="eWorkplace" type="text"></div>
+          <div class="edit-field"><label>Position (R)</label><input id="ePosition" type="text"></div>
+          <div class="edit-field"><label>Business (S)</label><input id="eBusiness" type="text"></div>
+          <div class="edit-field"><label>Previous Courses (W)</label><input id="ePrevCourses" type="text"></div>
+          <div class="edit-field"><label>Referred by 2 (V)</label><input id="eReferredBy2" type="text"></div>
+        </div>
+      </div>
+      <div class="edit-section">
+        <div class="edit-section-title">🧾 ข้อมูลใบเสร็จ</div>
+        <div class="edit-grid">
+          <div class="edit-field"><label>จ่ายเงินแบบ (AB)</label><input id="ePayType" type="text"></div>
+          <div class="edit-field"><label>ชื่อบริษัท (AC)</label><input id="eCompanyName" type="text"></div>
+          <div class="edit-field edit-full"><label>ที่อยู่ออกใบเสร็จ (AD)</label><textarea id="eReceiptAddr"></textarea></div>
+          <div class="edit-field"><label>เลขผู้เสียภาษี (AE)</label><input id="eTaxId" type="text"></div>
+          <div class="edit-field"><label>แบบบริษัท (AF)</label><input id="eCompanyType" type="text"></div>
+        </div>
+      </div>
+      <div class="edit-section">
+        <div class="edit-section-title">🆘 ผู้ประสานงาน & ฉุกเฉิน</div>
+        <div class="edit-grid">
+          <div class="edit-field"><label>Coordinator number (Y)</label><input id="eCoordPhone" type="text"></div>
+          <div class="edit-field"><label>Coordinator email (Z)</label><input id="eCoordEmail" type="text"></div>
+          <div class="edit-field edit-full"><label>Emergency contact (AA)</label><input id="eEmergency" type="text"></div>
+        </div>
+      </div>
+      <div class="edit-section">
+        <div class="edit-section-title">🎽 กิจกรรม & ความสนใจ</div>
+        <div class="edit-grid">
+          <div class="edit-field"><label>ไซส์เสื้อ (AG)</label>
+            <select id="eShirtSize">
+              <option value="">-- เลือก --</option>
+              <option>XS</option><option>S</option><option>M</option>
+              <option>L</option><option>XL</option><option>XXL</option><option>3XL</option>
+            </select>
+          </div>
+          <div class="edit-field"><label>Fav Drink (AH)</label><input id="eDrink1" type="text"></div>
+          <div class="edit-field"><label>Drink Ex. (AI)</label><input id="eDrink2" type="text"></div>
+          <div class="edit-field"><label>Fav Color (AJ)</label><input id="eFavColor" type="text"></div>
+          <div class="edit-field"><label>Hobbies (AK)</label><input id="eHobby" type="text"></div>
+          <div class="edit-field"><label>Sports (AL)</label><input id="eSports" type="text"></div>
+          <div class="edit-field"><label>Talents (AM)</label><input id="eTalents" type="text"></div>
+          <div class="edit-field"><label>Pets (AN)</label><input id="ePets" type="text"></div>
+          <div class="edit-field"><label>Investment (AO)</label><input id="eInvestment" type="text"></div>
+        </div>
+      </div>
+      <div class="edit-section">
+        <div class="edit-section-title">💳 การชำระเงิน</div>
+        <div class="edit-grid">
+          <div class="edit-field"><label>No. Q/INV (AQ)</label><input id="eInvoiceNo" type="text"></div>
+          <div class="edit-field"><label>แมจิกไทม์ / สำรอง (AR)</label><input id="eMagicTime" type="text"></div>
+          <div class="edit-field"><label>ประเภทการชำระ (AS)</label><input id="ePayCategory" type="text"></div>
+          <div class="edit-field"><label>สถานะการชำระ (AT)</label>
+            <select id="ePayStatus">
+              <option value="">-- เลือก --</option>
+              <option value="ชำระแล้ว">ชำระแล้ว</option>
+              <option value="ยังไม่ชำระ">ยังไม่ชำระ</option>
+              <option value="โควต้า">โควต้า</option>
+              <option value="ยกเลิก">ยกเลิก</option>
+            </select>
+          </div>
+          <div class="edit-field"><label>ยอดชำระ (AU)</label><input id="ePayAmount" type="text"></div>
+          <div class="edit-field edit-full"><label>หมายเหตุ (AV)</label><textarea id="eRemark"></textarea></div>
+          <div class="edit-field edit-full">
+            <label>📸 รูปภาพ</label>
+            <div class="photo-upload-box" id="photoUploadBox" onclick="document.getElementById('photoFileInput').click()">
+              <img id="editPhotoPreview" class="photo-preview" src="" alt="preview">
+              <div id="uploadPrompt">📷 คลิกเพื่อเลือกรูปภาพ</div>
+              <div id="uploadStatus" class="upload-status"></div>
+            </div>
+            <input type="file" id="photoFileInput" accept="image/*" style="display:none;" onchange="handlePhotoSelect(this)">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+// ===== UTILS =====
+function statusClass(s) {
+  if (s === 'ชำระแล้ว')   return 'paid';
+  if (s === 'ยังไม่ชำระ') return 'unpaid';
+  if (s === 'โควต้า')     return 'quota';
+  if (s === 'ยกเลิก')     return 'cancelled';
+  return '';
+}
+function avatarHtml(photo, name) {
+  if (photo) return `<img class="avatar" src="${photo}" alt="${name}" onerror="this.style.display='none'">`;
+  return `<div class="avatar-placeholder">👤</div>`;
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ===== NAV =====
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const page = btn.dataset.page;
+    document.querySelectorAll('main > section').forEach(s => s.style.display = 'none');
+    document.getElementById('page-' + page).style.display = '';
+    if (page === 'info') loadInfoList();
+  });
+});
+
+// ===== DASHBOARD =====
+google.charts.load('current', { packages: ['corechart'] });
+google.charts.setOnLoadCallback(loadDashboard);
+
+function loadDashboard() {
+  google.script.run
+    .withSuccessHandler(renderDashboard)
+    .withFailureHandler(e => console.error('Dashboard error:', e))
+    .getDashboardData();
+}
+
+function renderDashboard(d) {
+  if (!d) return;
+  
+  // อัปเดตตัวเลขการชำระเงินด้านบน
+  document.getElementById('paidCount').textContent      = d.paid;
+  document.getElementById('unpaidCount').textContent    = d.unpaid;
+  document.getElementById('quotaCount').textContent     = d.quota;
+  document.getElementById('cancelledCount').textContent = d.cancelled;
+  document.getElementById('totalCount').textContent     = d.total;
+
+  // วาดกราฟ
+  const data = google.visualization.arrayToDataTable([
+    ['สถานะ','จำนวน'],
+    ['ชำระแล้ว', d.paid], ['ยังไม่ชำระ', d.unpaid], ['โควต้า', d.quota], ['ยกเลิก', d.cancelled]
+  ]);
+  const chart = new google.visualization.PieChart(document.getElementById('chartDiv'));
+  chart.draw(data, {
+    backgroundColor: 'transparent', colors: ['#0d7a42','#c0392b','#1a56db','#6b7280'],
+    legend: { position: 'bottom', textStyle: { fontSize: 12 } },
+    chartArea: { width: '90%', height: '78%' }, pieHole: 0.38, tooltip: { showColorCode: true }
+  });
+
+  // อัปเดตตารางวันเกิด
+  const bb = document.getElementById('birthdayBody');
+  bb.innerHTML = d.birthdays.length
+    ? d.birthdays.map(r => `<tr>
+        <td>${avatarHtml(r.photo, r.nick)}</td>
+        <td>${r.nick}</td><td>${r.fullname}</td><td style="text-align:right;">${r.birth}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="4" class="loading">ไม่มีคนเกิดเดือนนี้</td></tr>';
+
+  // อัปเดตรายชื่อผู้สมัครล่าสุด
+  document.getElementById('applicantBody').innerHTML = d.applicants.map(r => `
+    <tr onclick="openProfilePopup(${r.index})">
+      <td>${avatarHtml(r.photo, r.nick)}</td>
+      <td>${r.nick}</td><td>${r.fullname}</td>
+      <td><span class="pill ${statusClass(r.status)}">${r.status}</span></td>
+    </tr>`).join('');
+
+  // อัปเดตตารางสามารถจ่าย
+  document.getElementById('canPaySub').textContent = `ทั้งหมด ${d.canPay.length} คน`;
+  document.getElementById('canPayBody').innerHTML = d.canPay.length
+    ? d.canPay.map(r => `<tr><td>${avatarHtml(r.photo, r.nick)}</td><td>${r.nick}</td><td>${r.fullname}</td></tr>`).join('')
+    : '<tr><td colspan="3" class="loading">ไม่มีรายการ</td></tr>';
+
+  // อัปเดตตาราง Magic Time
+  document.getElementById('magicTimeSub').textContent = `ทั้งหมด ${d.magicTime.length} คน`;
+  document.getElementById('magicTimeBody').innerHTML = d.magicTime.length
+    ? d.magicTime.map(r => `<tr><td>${avatarHtml(r.photo, r.nick)}</td><td>${r.nick}</td><td>${r.fullname}</td></tr>`).join('')
+    : '<tr><td colspan="3" class="loading">ไม่มีรายการ</td></tr>';
+}
+
+// ===== CLASSES PAGE =====
+const CLASS_INFO = {
+  'connext 1': { date:'20 Mar 2026', time:'13:00–22:00', host:'Phone' },
+  'connext 2': { date:'5 Apr 2026',  time:'13:00–22:00', host:'Phone' },
+  'connext 3': { date:'12 Apr 2026', time:'13:00–22:00', host:'Phone' },
+  'connext 4': { date:'19 Apr 2026', time:'13:00–22:00', host:'Phone' },
+  'connext 5': { date:'26 Apr 2026', time:'13:00–22:00', host:'Phone' },
+  'connext 6': { date:'5 May 2026',  time:'13:00–22:00', host:'Phone' },
+  'connext 7': { date:'TBD',          time:'13:00–22:00', host:'Phone' },
+};
+document.querySelectorAll('#class-list-view .class-data-row').forEach(row => {
+  row.querySelector('.class-arrow-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    openClassDetail(row.dataset.class);
+  });
+  row.addEventListener('click', () => openClassDetail(row.dataset.class));
+});
+document.getElementById('detail-back-btn').addEventListener('click', () => {
+  document.getElementById('class-detail-view').style.display = 'none';
+  document.getElementById('class-list-view').style.display   = '';
+});
+function openClassDetail(className) {
+  const info = CLASS_INFO[className] || {};
+  document.getElementById('detail-date').textContent = info.date || '';
+  document.getElementById('detail-time').textContent = info.time || '';
+  document.getElementById('detail-name').textContent = className;
+  document.getElementById('detail-host').textContent = info.host ? '🎤 ' + info.host : '';
+  document.getElementById('class-list-view').style.display   = 'none';
+  document.getElementById('class-detail-view').style.display = '';
+  document.getElementById('classDetailStats').innerHTML = '';
+  document.getElementById('classDetailBody').innerHTML  = '<div class="loading">กำลังโหลด...</div>';
+  google.script.run
+    .withSuccessHandler(d => renderClassDetail(d, className))
+    .withFailureHandler(e => {
+      document.getElementById('classDetailBody').innerHTML = '<div class="loading">เกิดข้อผิดพลาด: ' + e.message + '</div>';
+    })
+    .getConnextDetail(className);
+}
+
+function renderClassDetail(d, className) {
+  const stats = [
+    { label:'✅ ชำระแล้ว',   val:d.paid,   color:'#0d7a42' },
+    { label:'❌ ยังไม่ชำระ', val:d.unpaid, color:'#c0392b' },
+    { label:'🔵 โควต้า',     val:d.quota,  color:'#1a56db' },
+    { label:'📊 ทั้งหมด',    val:d.total,  color:'#0a7b35' },
+  ];
+  document.getElementById('classDetailStats').innerHTML = stats.map(s => `
+    <div class="detail-stat-card">
+      <div class="detail-stat-label">${s.label}</div>
+      <div class="detail-stat-val" style="color:${s.color};">${s.val}</div>
+    </div>`).join('');
+
+  document.getElementById('classDetailBody').innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+      <thead>
+        <tr style="background:var(--green-light);">
+          <th style="padding:10px 12px;text-align:center;">รูป</th>
+          <th style="padding:10px 12px;">ชื่อเล่น</th>
+          <th style="padding:10px 12px;">ชื่อ - นามสกุล</th>
+          <th style="padding:10px 12px;text-align:center;">สถานะ</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${d.members.map(m => `
+          <tr onclick="openProfilePopup(${m.rowIndex})" style="cursor:pointer;border-bottom:1px solid #edf1ee;">
+            <td style="padding:7px 12px;text-align:center;">${avatarHtml(m.photo, m.nick)}</td>
+            <td style="padding:7px 12px;">${m.nick}</td>
+            <td style="padding:7px 12px;">${m.fullname}</td>
+            <td style="padding:7px 12px;text-align:center;">
+              <span class="pill ${statusClass(m.status)}">${m.status}</span>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+// ===== INFO PAGE =====
+let infoLoaded = false;
+function loadInfoList() {
+  if (infoLoaded) return;
+  infoLoaded = true;
+  google.script.run
+    .withSuccessHandler(renderInfoList)
+    .withFailureHandler(() => {
+      document.getElementById('infoListContainer').innerHTML = '<div class="loading" style="color:rgba(255,255,255,.8);">เกิดข้อผิดพลาด</div>';
+    })
+    .getInfoClasses();
+}
+
+function renderInfoList(classes) {
+  const container = document.getElementById('infoListContainer');
+  if (!classes || !classes.length) {
+    container.innerHTML = '<div class="loading" style="color:rgba(255,255,255,.8);">ไม่มีข้อมูล</div>';
+    return;
+  }
+  container.innerHTML = classes.map(c => `
+    <div class="info-data-row">
+      <div style="font-weight:700;">${c.name}</div>
+      <div style="text-align:center;font-weight:700;color:var(--green-dark);">${c.total} คน</div>
+      <div style="text-align:center;">
+        <button class="info-arrow-btn" onclick="openInfoDetail('${c.name}')">›</button>
+      </div>
+    </div>`).join('');
+}
+
+function openInfoDetail(className) {
+  document.getElementById('infoDetailTitle').textContent   = className;
+  document.getElementById('info-list-view').style.display  = 'none';
+  document.getElementById('info-detail-view').style.display = '';
+  document.getElementById('infoDetailStats').innerHTML = '<div class="loading">กำลังโหลด...</div>';
+  document.getElementById('infoDetailBody').innerHTML  = '<tr><td colspan="7" class="loading">กำลังโหลด...</td></tr>';
+
+  google.script.run
+    .withSuccessHandler(d => renderInfoDetail(d, className))
+    .withFailureHandler(e => {
+      document.getElementById('infoDetailBody').innerHTML =
+        `<tr><td colspan="7" class="loading">เกิดข้อผิดพลาด: ${e.message}</td></tr>`;
+    })
+    .getConnextDetail(className);
+}
+
+function renderInfoDetail(d, className) {
+  slotMembers = d.members.filter(m => m.status !== 'ยกเลิก');
+  document.getElementById('searchInput').value = '';
+  document.getElementById('infoDetailStats').innerHTML = [
+    { label:'✅ ชำระแล้ว',   val:d.paid,      color:'#0d7a42' },
+    { label:'❌ ยังไม่ชำระ', val:d.unpaid,    color:'#c0392b' },
+    { label:'🔵 โควต้า',     val:d.quota,     color:'#1a56db' },
+    { label:'⚪ ยกเลิก',     val:d.cancelled, color:'#6b7280' },
+    { label:'📊 ทั้งหมด',    val:d.total,     color:'#0a7b35' },
+    { label:'👨 ชาย',        val:d.male,      color:'#1a56db' },
+    { label:'👩 หญิง',       val:d.female,    color:'#d63384' },
+  ].map(s => `
+    <div class="info-stat-card">
+      <div class="info-stat-label">${s.label}</div>
+      <div class="info-stat-val" style="color:${s.color};">${s.val}</div>
+    </div>`).join('');
+
+  document.getElementById('infoDetailBody').innerHTML = d.members.length
+    ? d.members.map(m => `
+        <tr data-search="${(m.nick + ' ' + m.fullname).toLowerCase()}"
+            onclick="openProfilePopup(${m.rowIndex})" style="cursor:pointer;border-bottom:1px solid #edf1ee;">
+          <td style="text-align:center;padding:7px 12px;">${avatarHtml(m.photo, m.nick)}</td>
+          <td style="padding:7px 12px;">${m.nick}</td>
+          <td style="padding:7px 12px;">${m.fullname}</td>
+          <td style="text-align:center;padding:7px 12px;">${m.birth}</td>
+          <td style="text-align:center;padding:7px 12px;">${m.age}</td>
+          <td style="text-align:center;padding:7px 12px;"><span class="pill ${statusClass(m.status)}">${m.status}</span></td>
+          <td style="text-align:center;padding:7px 12px;">
+            <button class="info-arrow-btn" style="width:28px;height:28px;font-size:13px;"
+              onclick="event.stopPropagation();openProfilePopup(${m.rowIndex})">›</button>
+          </td>
+        </tr>`).join('')
+    : '<tr><td colspan="7" class="loading">ไม่มีข้อมูล</td></tr>';
+}
+
+document.getElementById('infoBackBtn').addEventListener('click', () => {
+  document.getElementById('info-detail-view').style.display = 'none';
+  document.getElementById('info-list-view').style.display   = '';
+});
+
+// ===== POPUP VIEW =====
+const popupOverlay = document.getElementById('profilePopup');
+let currentRowIndex = null;
+let currentData     = null;
+
+function openProfilePopup(rowIndex) {
+  if (!rowIndex || rowIndex < 2) return;
+  currentRowIndex = rowIndex;
+  currentData     = null;
+  popupOverlay.style.display = 'flex';
+  ['popupNickname','popupFirstName','popupLastName','popupPhone','popupEmail',
+   'popupLine','popupFacebook','popupAddress','popupPosition','popupCompany',
+   'popupShirt','popupDrink','popupHobby','popupEmergency','popupStatus'
+  ].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const ph = document.getElementById('popupPhoto');
+  ph.src = ''; ph.style.display = 'none';
+
+  google.script.run
+    .withSuccessHandler(d => {
+      if (!d) return;
+      currentData = d;
+      if (d.photo) { ph.src = d.photo; ph.style.display = ''; }
+      document.getElementById('popupNickname').value  = d.nickname  || '';
+      document.getElementById('popupFirstName').value = d.firstName || '';
+      document.getElementById('popupLastName').value  = d.lastName  || '';
+      document.getElementById('popupPhone').value     = d.phone     || '';
+      document.getElementById('popupEmail').value     = d.email     || '';
+      document.getElementById('popupLine').value      = d.lineId    || '';
+      document.getElementById('popupFacebook').value  = d.facebook  || '';
+      document.getElementById('popupAddress').value   = d.address   || '';
+      document.getElementById('popupPosition').value  = d.position  || '';
+      document.getElementById('popupCompany').value   = d.workplace || '';
+      document.getElementById('popupShirt').value     = d.shirtSize || '';
+      document.getElementById('popupDrink').value     = [d.drink1, d.drink2].filter(Boolean).join(', ');
+      document.getElementById('popupHobby').value     = d.hobby     || '';
+      document.getElementById('popupEmergency').value = d.emergency || '';
+      document.getElementById('popupStatus').value    = d.status    || '';
+    })
+    .withFailureHandler(e => console.error('Popup error:', e))
+    .getApplicantDetail(rowIndex);
+}
+
+document.getElementById('popupCloseBtn').addEventListener('click', () => {
+  popupOverlay.style.display = 'none';
+});
+popupOverlay.addEventListener('click', e => {
+  if (e.target === popupOverlay) popupOverlay.style.display = 'none';
+});
+
+// ===== POPUP EDIT =====
+const editOverlay = document.getElementById('editOverlay');
+
+document.getElementById('popupEditBtn').addEventListener('click', () => {
+  if (!currentData) return;
+  const d = currentData;
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+  set('eLineCandit', d.lineCandit); set('eStatusB',    d.statusB);
+  set('eRound',      d.round);      set('eReferredBy', d.referredBy);
+  set('eFullnameE',  d.fullnameE);  set('eNickname',   d.nickname);
+  set('eFirstName',  d.firstName);  set('eLastName',   d.lastName);
+  set('eNameEn',     d.nameEn);     set('eNicknameEn', d.nicknameEn);
+  set('eIdNo',       d.idNo);       set('eBirthday',   d.birthday);
+  set('eAge',        d.age);        set('eLineId',     d.lineId);
+  set('eFacebook',   d.facebook);   set('eInstagram',  d.instagram);
+  set('ePhone',      d.phone);      set('eEmail',      d.email);
+  set('eAddress',    d.address);    set('eWorkplace',  d.workplace);
+  set('ePosition',   d.position);   set('eBusiness',   d.business);
+  set('ePrevCourses',d.prevCourses);set('eReferredBy2',d.referredBy2);
+  set('ePayType',    d.payType);    set('eCompanyName',d.companyName);
+  set('eReceiptAddr',d.receiptAddr);set('eTaxId',      d.taxId);
+  set('eCompanyType',d.companyType);set('eCoordPhone', d.coordPhone);
+  set('eCoordEmail', d.coordEmail); set('eEmergency',  d.emergency);
+  set('eInvoiceNo',  d.invoiceNo);  set('eMagicTime',  d.magicTime);
+  set('ePayCategory',d.payCategory);set('ePayAmount',  d.payAmount);
+  set('eRemark',     d.remark);
+  set('eDrink1',d.drink1); set('eDrink2',d.drink2); set('eFavColor',d.favColor);
+  set('eHobby',d.hobby);   set('eSports',d.sports);   set('eTalents',d.talents);
+  set('ePets',d.pets);     set('eInvestment',d.investment);
+  const gs = document.getElementById('eGender');   if (gs) gs.value = d.gender    || '';
+  const ss = document.getElementById('eShirtSize');if (ss) ss.value = d.shirtSize || '';
+  const ps = document.getElementById('ePayStatus');if (ps) ps.value = d.payStatus || '';
+  const prev   = document.getElementById('editPhotoPreview');
+  const prompt = document.getElementById('uploadPrompt');
+  if (d.photo) { prev.src = d.photo; prev.style.display = 'block'; prompt.style.display = 'none'; }
+  else         { prev.style.display = 'none'; prompt.style.display = ''; }
+  document.getElementById('uploadStatus').textContent = '';
+  editOverlay.style.display = 'flex';
+});
+
+document.getElementById('editCancelBtn').addEventListener('click', () => {
+  editOverlay.style.display = 'none';
+});
+
+document.getElementById('editSaveBtn').addEventListener('click', () => {
+  if (!currentRowIndex) return;
+  const get = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const data = {
+    lineCandit:  get('eLineCandit'),  statusB:     get('eStatusB'),
+    round:       get('eRound'),       referredBy:  get('eReferredBy'),
+    fullnameE:   get('eFullnameE'),   nickname:    get('eNickname'),
+    firstName:   get('eFirstName'),   lastName:    get('eLastName'),
+    nameEn:      get('eNameEn'),      nicknameEn:  get('eNicknameEn'),
+    idNo:        get('eIdNo'),        gender:      get('eGender'),
+    birthday:    get('eBirthday'),    age:         get('eAge'),
+    lineId:      get('eLineId'),      facebook:    get('eFacebook'),
+    instagram:   get('eInstagram'),   phone:       get('ePhone'),
+    email:       get('eEmail'),       address:     get('eAddress'),
+    workplace:   get('eWorkplace'),   position:    get('ePosition'),
+    business:    get('eBusiness'),    prevCourses: get('ePrevCourses'),
+    referredBy2: get('eReferredBy2'), payType:     get('ePayType'),
+    companyName: get('eCompanyName'), receiptAddr: get('eReceiptAddr'),
+    taxId:       get('eTaxId'),       companyType: get('eCompanyType'),
+    coordPhone:  get('eCoordPhone'),  coordEmail:  get('eCoordEmail'),
+    emergency:   get('eEmergency'),   
+    shirtSize:   get('eShirtSize'),
+    drink1:      get('eDrink1'),      drink2:      get('eDrink2'),
+    favColor:    get('eFavColor'),    hobby:       get('eHobby'),
+    sports:      get('eSports'),      talents:     get('eTalents'),
+    pets:        get('ePets'),        investment:  get('eInvestment'),
+    invoiceNo:   get('eInvoiceNo'),   magicTime:   get('eMagicTime'),
+    payCategory: get('ePayCategory'), payStatus:   get('ePayStatus'),
+    payAmount:   get('ePayAmount'),   remark:      get('eRemark'),
+    photoLink:   currentData ? currentData.photoLink : '',
+  };
+  google.script.run
+    .withSuccessHandler(r => {
+      if (r && r.success) {
+        showToast('บันทึกสำเร็จ ✅');
+        editOverlay.style.display = 'none';
+        loadDashboard();
+        infoLoaded = false;
+      } else showToast('เกิดข้อผิดพลาด ❌');
+    })
+    .withFailureHandler(() => showToast('เกิดข้อผิดพลาด ❌'))
+    .updateApplicant(currentRowIndex, data);
+});
+
+// ===== PHOTO UPLOAD =====
+function handlePhotoSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const status = document.getElementById('uploadStatus');
+  const prev   = document.getElementById('editPhotoPreview');
+  const prompt = document.getElementById('uploadPrompt');
+  status.textContent = 'กำลังอัพโหลด...'; status.className = 'upload-status loading';
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const result = e.target.result;
+    prev.src = result; prev.style.display = 'block'; prompt.style.display = 'none';
+    const base64    = result.split(',')[1];
+    const firstName = document.getElementById('eFirstName').value.trim() || 'unknown';
+    const lastName  = document.getElementById('eLastName').value.trim()  || 'unknown';
+    google.script.run
+      .withSuccessHandler(r => {
+        if (r && r.success) {
+          status.textContent = 'อัพโหลดสำเร็จ ✅'; status.className = 'upload-status success';
+          if (currentData) currentData.photoLink = r.url;
+        } else {
+          status.textContent = 'อัพโหลดไม่สำเร็จ ❌'; status.className = 'upload-status error';
+        }
+      })
+      .withFailureHandler(() => {
+        status.textContent = 'อัพโหลดไม่สำเร็จ ❌'; status.className = 'upload-status error';
+      })
+      .uploadPhoto(base64, file.type, firstName, lastName, currentRowIndex);
+  };
+  reader.readAsDataURL(file);
+}
+
+// ===== CALENDAR =====
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth();
+let selectedDate = null;
+function toggleCalendar() {
+  const cal = document.getElementById('calendarPicker');
+  if (cal.style.display === 'none') {
+    initCalendarSelects(); renderCalendar(); cal.style.display = '';
+  } else { cal.style.display = 'none'; }
+}
+
+function initCalendarSelects() {
+  const ms = document.getElementById('calMonthSel');
+  const ys = document.getElementById('calYearSel');
+  if (!ms.options.length) {
+    ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+     'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'
+    ].forEach((m,i) => { const o = document.createElement('option'); o.value=i; o.textContent=m; ms.appendChild(o); });
+    const cy = new Date().getFullYear();
+    for (let y = cy-80; y <= cy; y++) {
+      const o = document.createElement('option');
+      o.value=y; o.textContent=y+543; ys.appendChild(o);
     }
+  }
+  ms.value = calMonth; ys.value = calYear;
+}
 
-    function onScanFailure(error) {}
+function renderCalendar() {
+  calMonth = parseInt(document.getElementById('calMonthSel').value);
+  calYear  = parseInt(document.getElementById('calYearSel').value);
+  const firstDay    = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const today       = new Date();
+  let html = '';
+  for (let i = 0; i < firstDay; i++) html += '<div></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const isToday = d===today.getDate() && calMonth===today.getMonth() && calYear===today.getFullYear();
+    const isSel   = selectedDate && selectedDate.d===d && selectedDate.m===calMonth && selectedDate.y===calYear;
+    html += `<div class="cal-day${isToday?' today':''}${isSel?' selected':''}" onclick="selectDate(${d})">${d}</div>`;
+  }
+  document.getElementById('calDays').innerHTML = html;
+}
 
-    html5QrcodeScanner.render(onScanSuccess, onScanFailure);
-  </script>
+function selectDate(d) {
+  selectedDate = { d, m:calMonth, y:calYear };
+  const dd = String(d).padStart(2,'0');
+  const mm = String(calMonth+1).padStart(2,'0');
+  document.getElementById('eBirthday').value = `${dd}/${mm}/${calYear}`;
+  const today = new Date();
+  let age = today.getFullYear() - calYear;
+  if (today.getMonth() < calMonth || (today.getMonth()===calMonth && today.getDate()<d)) age--;
+  document.getElementById('eAge').value = age;
+  document.getElementById('calendarPicker').style.display = 'none';
+}
+
+function changeMonth(delta) {
+  calMonth += delta;
+  if (calMonth < 0)  { calMonth = 11; calYear--; }
+  if (calMonth > 11) { calMonth = 0;  calYear++; }
+  document.getElementById('calMonthSel').value = calMonth;
+  document.getElementById('calYearSel').value  = calYear;
+  renderCalendar();
+}
+
+document.addEventListener('click', e => {
+  const cal  = document.getElementById('calendarPicker');
+  const bday = document.getElementById('eBirthday');
+  if (cal && !cal.contains(e.target) && e.target !== bday) cal.style.display = 'none';
+});
+
+// ===== SEARCH =====
+let slotMembers = [];
+let slotTimer   = null;
+function filterTable() {
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  document.querySelectorAll('#infoDetailBody tr[data-search]').forEach(row => {
+    row.style.display = row.dataset.search.includes(q) ? '' : 'none';
+  });
+}
+
+// ===== SLOT =====
+function runSlot() {
+  if (!slotMembers.length) return;
+  document.getElementById('slotOverlay').style.display = 'flex';
+  const display = document.getElementById('slotDisplay');
+  const sub     = document.getElementById('slotSub');
+  let count = 0;
+  clearInterval(slotTimer);
+  slotTimer = setInterval(() => {
+    const r = slotMembers[Math.floor(Math.random() * slotMembers.length)];
+    display.textContent = r.nick || r.fullname;
+    sub.textContent     = r.fullname;
+    count++;
+    if (count >= 25) {
+      clearInterval(slotTimer);
+      const final = slotMembers[Math.floor(Math.random() * slotMembers.length)];
+      display.textContent = final.nick || final.fullname;
+      sub.textContent     = final.fullname;
+      display.style.background   = '#e3f9ee';
+      display.style.borderColor  = '#0d7a42';
+    }
+  }, 80);
+}
+
+function closeSlot() {
+  clearInterval(slotTimer);
+  document.getElementById('slotOverlay').style.display = 'none';
+  document.getElementById('slotDisplay').style.background   = 'var(--green-light)';
+  document.getElementById('slotDisplay').style.borderColor  = 'var(--green-mid)';
+}
+
+// ===== TABLE SORTING =====
+let currentSort = { table: '', col: -1, asc: true };
+function sortTable(thElement, tbodyId, colIndex, isNumber = false) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  if (rows.length === 0 || rows[0].querySelector('.loading')) return;
+  if (currentSort.table === tbodyId && currentSort.col === colIndex) {
+    currentSort.asc = !currentSort.asc;
+  } else {
+    currentSort = { table: tbodyId, col: colIndex, asc: true };
+  }
+  const thead = thElement.closest('thead');
+  thead.querySelectorAll('th').forEach(th => {
+    th.innerHTML = th.innerHTML.replace(/ [▲▼]/g, '');
+  });
+  thElement.innerHTML += currentSort.asc ? ' ▲' : ' ▼';
+  rows.sort((a, b) => {
+    let valA = a.children[colIndex] ? a.children[colIndex].textContent.trim() : '';
+    let valB = b.children[colIndex] ? b.children[colIndex].textContent.trim() : '';
+    if (isNumber) { valA = parseFloat(valA) || 0; valB = parseFloat(valB) || 0; return currentSort.asc ? valA - valB : valB - valA; }
+    else { return currentSort.asc ? valA.localeCompare(valB, 'th') : valB.localeCompare(valA, 'th'); }
+  });
+  rows.forEach(row => tbody.appendChild(row));
+}
+
+// ===== GRIDSTACK LAYOUT MANAGER =====
+var dashGrid;
+function initGridstack() {
+  if (typeof GridStack === 'undefined') {
+    setTimeout(initGridstack, 500);
+    return;
+  }
+  dashGrid = GridStack.init({ cellHeight: 90, margin: 10, disableDrag: true, disableResize: true, float: true });
+  google.script.run
+    .withSuccessHandler(savedLayout => {
+      if (savedLayout) {
+        try {
+          // แปลง JSON string กลับเป็น object
+          const layoutObj = JSON.parse(savedLayout);
+          dashGrid.load(layoutObj);
+        } catch(e) { console.error('Error loading layout JSON:', e); }
+      }
+    })
+    .withFailureHandler(e => console.error('Error loading layout:', e))
+    .loadDashboardLayout();
+}
+setTimeout(initGridstack, 1000);
+
+function toggleEditLayout() {
+  if (typeof dashGrid === 'undefined' || !dashGrid) { showToast('กำลังโหลดระบบจัดเรียง กรุณารอสักครู่...'); return; }
+  dashGrid.enable();
+  document.getElementById('editLayoutBtn').style.display = 'none';
+  document.getElementById('saveLayoutBtn').style.display = 'inline-block';
+  showToast('🛠️ เข้าสู่โหมดปรับแต่ง ลากกล่องหรือดึงมุมขวาล่างเพื่อย่อ/ขยายได้เลย');
+}
+
+function saveLayout() {
+  if (typeof dashGrid === 'undefined' || !dashGrid) return;
+  const layoutData = dashGrid.save();
+  dashGrid.disable();
+  document.getElementById('editLayoutBtn').style.display = 'inline-block';
+  document.getElementById('saveLayoutBtn').style.display = 'none';
+  showToast('กำลังบันทึก...');
+  google.script.run
+    .withSuccessHandler(() => showToast('💾 บันทึก Layout สำเร็จ!'))
+    .withFailureHandler(() => showToast('❌ บันทึกไม่สำเร็จ กรุณาลองใหม่'))
+    .saveDashboardLayout(layoutData);
+}
+
+// ===== NEW: ระบบสแกน QR Code (Client-side) =====
+const qrLogPopup    = document.getElementById('qrLogPopup');
+const qrLogReader   = document.getElementById('qrLogReader');
+const qrLogInitial  = document.getElementById('qrLogInitial');
+const qrLogResult   = document.getElementById('qrLogResult');
+// ตัวแปรสำหรับเก็บอินสแตนซ์ของตัวสแกน
+var qrLogScanner   = null;
+
+// ฟังก์ชันเปิดป๊อปอัพสแกน
+function openQrLogPopup() {
+  // ล้างค่าอินสแตนซ์เก่าออกก่อนถ้ามี
+  if (qrLogScanner) qrLogScanner.clear();
+  qrLogScanner = null;
+  // แสดงหน้าต่างป๊อปอัพ
+  qrLogPopup.style.display = 'flex';
+  // ตั้งค่าเริ่มต้นของป๊อปอัพ
+  qrLogReader.style.display   = 'none';
+  qrLogInitial.style.display  = 'block';
+  qrLogResult.textContent    = '';
+}
+
+// ฟังก์ชันปิดป๊อปอัพสแกน
+function closeQrLogPopup() {
+  // ถ้ามีการเปิดกล้องอยู่ ให้ปิดก่อน
+  if (qrLogScanner) qrLogScanner.clear().catch(e => console.error("Error clearing scanner", e));
+  qrLogPopup.style.display = 'none';
+}
+
+// กำหนดเหตุการณ์คลิกสำหรับปุ่มปิด
+document.getElementById('qrLogCloseBtn').addEventListener('click', closeQrLogPopup);
+// กำหนดเหตุการณ์คลิกที่พื้นหลังเพื่อปิดป๊อปอัพ
+qrLogPopup.addEventListener('click', e => {
+  if (e.target === qrLogPopup) closeQrLogPopup();
+});
+
+// ฟังก์ชันเริ่มการสแกน
+function startQrLogScan() {
+  qrLogInitial.style.display = 'none'; // ซ่อนหน้าจอเริ่มต้น
+  qrLogReader.style.display  = 'block'; // แสดงกรอบตัวสแกน
+  qrLogResult.textContent   = 'กำลังเปิดกล้อง...';
+  
+  // สร้างอินสแตนซ์ของ Html5QrcodeScanner
+  qrLogScanner = new Html5QrcodeScanner(
+    "qrLogReader", 
+    { fps: 10, qrbox: { width: 250, height: 250 } }, 
+    /* verbose= */ false
+  );
+  
+  // เริ่มต้นการสแกน พร้อมกำหนดฟังก์ชันเมื่อสำเร็จและเกิดข้อผิดพลาด
+  qrLogScanner.render(onQrLogScanSuccess, onQrLogScanError);
+}
+
+// ฟังก์ชันเมื่อสแกน QR Code สำเร็จ
+function onQrLogScanSuccess(decodedText, decodedResult) {
+  // 1. สแกนสำเร็จ ให้หยุดกล้องทันที
+  qrLogScanner.clear().then(() => {
+    // ซ่อนตัวสแกนและแสดงหน้าจอเริ่มต้นเพื่อเตรียมพร้อมสแกนใหม่
+    qrLogReader.style.display = 'none';
+    qrLogInitial.style.display = 'block';
+    // แสดงข้อมูลที่สแกนได้
+    qrLogResult.textContent    = `บันทึกข้อมูล: "${decodedText}" ...`;
+    qrLogResult.className = '';
+    
+    // 2. ส่งข้อมูลไปยัง Apps Script (ฟังก์ชัน logQrScan ใน Code.gs)
+    google.script.run
+      .withSuccessHandler(r => {
+        if (r && r.success) {
+          qrLogResult.textContent = `✅ บันทึกสำเร็จ: ${decodedText}`;
+          qrLogResult.className = 'success';
+          showToast('บันทึก QR Scan สำเร็จ ✅');
+          // อาจจะเลือกรีโหลดข้อมูล Dashboard ถ้าจำเป็น
+          // loadDashboard();
+        } else {
+          qrLogResult.textContent = `❌ เกิดข้อผิดพลาด: ${r.message}`;
+          qrLogResult.className = 'error';
+          showToast('เกิดข้อผิดพลาดในการบันทึก QR Scan ❌');
+        }
+      })
+      .withFailureHandler(e => {
+          qrLogResult.textContent = `❌ เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์`;
+          qrLogResult.className = 'error';
+          showToast('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์ ❌');
+      })
+      .logQrScan(decodedText);
+      
+  }).catch(e => {
+    console.error("Error clearing scanner after success", e);
+    showToast('เกิดข้อผิดพลาดในการปิดระบบสแกน');
+  });
+}
+
+// ฟังก์ชันเมื่อเกิดข้อผิดพลาดในการสแกน (เช่น กล้องไม่ชัด)
+function onQrLogScanError(error) {
+    // ปล่อยให้มันทำงานต่อไป ไม่ต้องแสดงข้อผิดพลาดแบบระเอียดต่อผู้ใช้
+}
+// =====================================
+</script>
 </body>
 </html>
