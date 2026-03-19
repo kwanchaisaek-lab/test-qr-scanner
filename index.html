@@ -175,7 +175,6 @@
     .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
 
     /* NEW QR LOG STYLES */
-    #qrLogInitial p { font-size: 13px; color: var(--muted); margin-top: 10px; }
     #qrLogReader { margin: 20px auto; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
 
     @media (max-width:900px) {
@@ -218,7 +217,7 @@
         </div>
         <div style="display:flex; align-items:center; gap: 10px;">
           <button id="qrLogBtn" onclick="openQrLogPopup()" style="padding:10px 20px; border-radius:999px; border:2px solid var(--green); background:var(--green); color:#fff; font-weight:700; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:var(--shadow); transition:all .2s;">
-            🎰 บันทึก QR Scan
+            🎰 Scan QR
           </button>
           <button id="editLayoutBtn" onclick="toggleEditLayout()" style="padding:8px 16px; border-radius:8px; border:2px solid var(--green); background:#fff; color:var(--green); font-weight:700; cursor:pointer; transition:all 0.2s;">⚙️ ปรับแต่ง Layout</button>
           <button id="saveLayoutBtn" onclick="saveLayout()" style="display:none; padding:8px 16px; border-radius:8px; border:none; background:var(--green); color:#fff; font-weight:700; cursor:pointer; box-shadow:var(--shadow);">💾 บันทึก Layout</button>
@@ -234,7 +233,6 @@
       </div>
 
       <div class="grid-stack" id="dashboard-grid">
-        
         <div class="grid-stack-item" gs-id="panel-chart" gs-x="0" gs-y="0" gs-w="6" gs-h="5">
           <div class="grid-stack-item-content">
             <div class="panel" style="height:100%; display:flex; flex-direction:column; margin:0; padding:18px;">
@@ -474,21 +472,13 @@
 <div id="qrLogPopup" class="popup-overlay">
   <div class="popup-card" style="max-width: 500px;">
     <div class="popup-header">
-      <div class="popup-title">🎰 บันทึก QR Scan</div>
+      <div class="popup-title">🎰 Scan QR</div>
       <div class="popup-header-actions">
         <button type="button" id="qrLogCloseBtn" class="popup-close-btn">×</button>
       </div>
     </div>
     <div class="popup-body" style="display: block;">
         <div id="qrLogReader" style="display: none; width: 100%;"></div>
-        
-        <div id="qrLogInitial" style="text-align: center; padding: 30px;">
-            <button id="qrLogStartBtn" class="nav-btn active" style="width: auto;" onclick="startQrLogScan()">
-               🎲 เปิดกล้องสแกน QR
-            </button>
-            <p>คลิกปุ่มด้านบนเพื่อเปิดกล้องและบันทึกข้อมูล QR Code ลง Sheet</p>
-        </div>
-        
         <div id="qrLogResult" style="text-align: center; margin-top: 20px; font-size: 18px; font-weight: bold;"></div>
     </div>
   </div>
@@ -1260,7 +1250,6 @@ function initGridstack() {
     .withSuccessHandler(savedLayout => {
       if (savedLayout) {
         try {
-          // แปลง JSON string กลับเป็น object
           const layoutObj = JSON.parse(savedLayout);
           dashGrid.load(layoutObj);
         } catch(e) { console.error('Error loading layout JSON:', e); }
@@ -1292,100 +1281,72 @@ function saveLayout() {
     .saveDashboardLayout(layoutData);
 }
 
-// ===== NEW: ระบบสแกน QR Code (Client-side) =====
+// ===== อัปเดต: ระบบสแกน QR Code (เปิดออโต้) =====
 const qrLogPopup    = document.getElementById('qrLogPopup');
 const qrLogReader   = document.getElementById('qrLogReader');
-const qrLogInitial  = document.getElementById('qrLogInitial');
 const qrLogResult   = document.getElementById('qrLogResult');
-// ตัวแปรสำหรับเก็บอินสแตนซ์ของตัวสแกน
 var qrLogScanner   = null;
 
-// ฟังก์ชันเปิดป๊อปอัพสแกน
 function openQrLogPopup() {
-  // ล้างค่าอินสแตนซ์เก่าออกก่อนถ้ามี
-  if (qrLogScanner) qrLogScanner.clear();
+  // เคลียร์กล้องเก่า(ถ้ามี)
+  if (qrLogScanner) {
+    qrLogScanner.clear().catch(e => console.log(e));
+  }
   qrLogScanner = null;
-  // แสดงหน้าต่างป๊อปอัพ
+  
+  // เปิดป๊อปอัพ
   qrLogPopup.style.display = 'flex';
-  // ตั้งค่าเริ่มต้นของป๊อปอัพ
-  qrLogReader.style.display   = 'none';
-  qrLogInitial.style.display  = 'block';
-  qrLogResult.textContent    = '';
+  qrLogReader.style.display  = 'block';
+  qrLogResult.textContent   = 'กำลังเปิดกล้อง...';
+  qrLogResult.className     = '';
+
+  // สั่งให้กล้องทำงานทันทีที่เปิดป๊อปอัพ
+  qrLogScanner = new Html5QrcodeScanner(
+    "qrLogReader", 
+    { fps: 10, qrbox: { width: 250, height: 250 } }, 
+    false
+  );
+  qrLogScanner.render(onQrLogScanSuccess, onQrLogScanError);
 }
 
-// ฟังก์ชันปิดป๊อปอัพสแกน
 function closeQrLogPopup() {
-  // ถ้ามีการเปิดกล้องอยู่ ให้ปิดก่อน
-  if (qrLogScanner) qrLogScanner.clear().catch(e => console.error("Error clearing scanner", e));
+  if (qrLogScanner) qrLogScanner.clear().catch(e => console.error(e));
   qrLogPopup.style.display = 'none';
 }
 
-// กำหนดเหตุการณ์คลิกสำหรับปุ่มปิด
 document.getElementById('qrLogCloseBtn').addEventListener('click', closeQrLogPopup);
-// กำหนดเหตุการณ์คลิกที่พื้นหลังเพื่อปิดป๊อปอัพ
 qrLogPopup.addEventListener('click', e => {
   if (e.target === qrLogPopup) closeQrLogPopup();
 });
 
-// ฟังก์ชันเริ่มการสแกน
-function startQrLogScan() {
-  qrLogInitial.style.display = 'none'; // ซ่อนหน้าจอเริ่มต้น
-  qrLogReader.style.display  = 'block'; // แสดงกรอบตัวสแกน
-  qrLogResult.textContent   = 'กำลังเปิดกล้อง...';
-  
-  // สร้างอินสแตนซ์ของ Html5QrcodeScanner
-  qrLogScanner = new Html5QrcodeScanner(
-    "qrLogReader", 
-    { fps: 10, qrbox: { width: 250, height: 250 } }, 
-    /* verbose= */ false
-  );
-  
-  // เริ่มต้นการสแกน พร้อมกำหนดฟังก์ชันเมื่อสำเร็จและเกิดข้อผิดพลาด
-  qrLogScanner.render(onQrLogScanSuccess, onQrLogScanError);
-}
-
-// ฟังก์ชันเมื่อสแกน QR Code สำเร็จ
 function onQrLogScanSuccess(decodedText, decodedResult) {
-  // 1. สแกนสำเร็จ ให้หยุดกล้องทันที
   qrLogScanner.clear().then(() => {
-    // ซ่อนตัวสแกนและแสดงหน้าจอเริ่มต้นเพื่อเตรียมพร้อมสแกนใหม่
     qrLogReader.style.display = 'none';
-    qrLogInitial.style.display = 'block';
-    // แสดงข้อมูลที่สแกนได้
     qrLogResult.textContent    = `บันทึกข้อมูล: "${decodedText}" ...`;
     qrLogResult.className = '';
     
-    // 2. ส่งข้อมูลไปยัง Apps Script (ฟังก์ชัน logQrScan ใน Code.gs)
     google.script.run
       .withSuccessHandler(r => {
         if (r && r.success) {
           qrLogResult.textContent = `✅ บันทึกสำเร็จ: ${decodedText}`;
           qrLogResult.className = 'success';
           showToast('บันทึก QR Scan สำเร็จ ✅');
-          // อาจจะเลือกรีโหลดข้อมูล Dashboard ถ้าจำเป็น
-          // loadDashboard();
         } else {
           qrLogResult.textContent = `❌ เกิดข้อผิดพลาด: ${r.message}`;
           qrLogResult.className = 'error';
-          showToast('เกิดข้อผิดพลาดในการบันทึก QR Scan ❌');
         }
       })
       .withFailureHandler(e => {
-          qrLogResult.textContent = `❌ เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์`;
+          qrLogResult.textContent = `❌ เกิดข้อผิดพลาดในการเชื่อมต่อ`;
           qrLogResult.className = 'error';
-          showToast('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์ ❌');
       })
       .logQrScan(decodedText);
       
-  }).catch(e => {
-    console.error("Error clearing scanner after success", e);
-    showToast('เกิดข้อผิดพลาดในการปิดระบบสแกน');
-  });
+  }).catch(e => console.error(e));
 }
 
-// ฟังก์ชันเมื่อเกิดข้อผิดพลาดในการสแกน (เช่น กล้องไม่ชัด)
 function onQrLogScanError(error) {
-    // ปล่อยให้มันทำงานต่อไป ไม่ต้องแสดงข้อผิดพลาดแบบระเอียดต่อผู้ใช้
+  // ละเว้นข้อผิดพลาดขณะสแกน
 }
 // =====================================
 </script>
